@@ -1,0 +1,70 @@
+const API_URL: string = process.env.NEXT_PUBLIC_API_URL || "";
+const AVATARS_URL: string = process.env.NEXT_PUBLIC_AVATARS_URL || "";
+const GLUEDIN_API_KEY: string = process.env.NEXT_PUBLIC_GLUEDIN_API_KEY || "";
+const GLUEDIN_SECRET_KEY: string =
+  process.env.NEXT_PUBLIC_GLUEDIN_SECRET_KEY || "";
+const GLUEDIN_LOGIN_SECRET_KEY: string =
+  process.env.NEXT_PUBLIC_GLUEDIN_LOGIN_SECRET_KEY || "";
+const GA_ID: string = process.env.NEXT_PUBLIC_GA_ID || "";
+const GTM_ID: string = process.env.NEXT_PUBLIC_GTM_ID || "";
+const INFOBIP_WHATSAPP_URL: string =
+  process.env.NEXT_PUBLIC_INFOBIP_WHATSAPP_URL || "";
+const CDP_CLIENT_ID: string = process.env.NEXT_PUBLIC_CDP_CLIENT_ID || "";
+const CDP_BRAND_NAME: string = process.env.NEXT_PUBLIC_CDP_BRAND_NAME || "";
+const CDP_USER_IDENTIFIER_TYPE: string =
+  process.env.NEXT_PUBLIC_CDP_USER_IDENTIFIED_TYPE || "";
+const CDP_USER_IDENTIFIER_SUB_TYPE: string =
+  process.env.NEXT_PUBLIC_CDP_USER_IDENTIFIER_SUB_TYPE || "";
+const CDP_API_URL: string = process.env.NEXT_PUBLIC_CDP_API_URL || "";
+const CDP_API_KEY: string = process.env.NEXT_PUBLIC_CDP_API_KEY || "";
+const IP_URL: string = process.env.NEXT_PUBLIC_IP_URL || "";
+const FIREBASE_API_KEY: string = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
+const FIREBASE_AUTH_DOMAIN: string =
+  process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "";
+const FIREBASE_PROJECT_ID: string =
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
+const FIREBASE_STORAGE_BUCKET: string =
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "";
+const FIREBASE_MESSAGING_SENDER_ID: string =
+  process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "";
+const FIREBASE_APP_ID: string = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "";
+const FIREBASE_MEASUREMENT_ID: string =
+  process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "";
+const FIREBASE_VAPID_KEY: string =
+  process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "";
+const BE_X_API_KEY: string = process.env.NEXT_PUBLIC_X_API_KEY || "";
+const FLOODLIGHT_ID: string = process.env.NEXT_PUBLIC_GA_FLOODLIGHT_DC_ID || "";
+const FB_PIXEL_ID: string = process.env.NEXT_PUBLIC_FB_PIXEL_ID || "";
+const ALLOY_ORG_ID: string = process.env.NEXT_PUBLIC_ALLOY_ORG_ID || "";
+const ALLOY_DATASTREAM_ID: string = process.env.NEXT_PUBLIC_ALLOY_DATASTREAM_ID || "";
+
+export {
+  API_URL,
+  AVATARS_URL,
+  GLUEDIN_API_KEY,
+  GLUEDIN_SECRET_KEY,
+  GLUEDIN_LOGIN_SECRET_KEY,
+  GA_ID,
+  GTM_ID,
+  INFOBIP_WHATSAPP_URL,
+  CDP_CLIENT_ID,
+  CDP_BRAND_NAME,
+  CDP_USER_IDENTIFIER_TYPE,
+  CDP_USER_IDENTIFIER_SUB_TYPE,
+  CDP_API_URL,
+  CDP_API_KEY,
+  IP_URL,
+  FIREBASE_API_KEY,
+  FIREBASE_AUTH_DOMAIN,
+  FIREBASE_PROJECT_ID,
+  FIREBASE_STORAGE_BUCKET,
+  FIREBASE_MESSAGING_SENDER_ID,
+  FIREBASE_APP_ID,
+  FIREBASE_MEASUREMENT_ID,
+  FIREBASE_VAPID_KEY,
+  ALLOY_ORG_ID,
+  ALLOY_DATASTREAM_ID,
+  BE_X_API_KEY,
+  FLOODLIGHT_ID,
+  FB_PIXEL_ID
+};

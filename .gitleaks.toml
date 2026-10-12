@@ -1,0 +1,6 @@
+title = "jiab-frontend gitleaks config"
+[extend]
+useDefault = true
+[allowlist]
+description = "Vendor SDK bundle (minified third-party code, no credentials)"
+paths = ['''gluedin/gluedin-sdk\.js''']

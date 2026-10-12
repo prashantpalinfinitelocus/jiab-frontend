@@ -1,0 +1,400 @@
+import apiClient from "../client";
+import { ErrorResponse, SuccessResponse } from "../utils/responseConvertor";
+import { API_ROUTES, LOCAL_STORAGE_KEYS } from "../client/config";
+import { MainService } from "./MainService";
+import { getLocalStorageItem } from "@/utils";
+import { AUTHORIZATION_TYPES } from "../client/constant";
+import { IReelReaction, TSubmitJokeParams } from "../types/JokeTypes";
+import { LIMIT_EXCEED, OTHER_ERROR } from "@/constants";
+
+export class JokeService extends MainService {
+  private static instance: JokeService;
+
+  public static getInstance(): JokeService {
+    if (!JokeService.instance) {
+      JokeService.instance = new JokeService();
+    }
+    return JokeService.instance;
+  }
+
+  private getAuthHeaders() {
+    const token = getLocalStorageItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
+    return token
+      ? {
+          Authorization: `${AUTHORIZATION_TYPES.BEARER} ${token}`,
+        }
+      : {};
+  }
+
+  public async GetSurpriseMe(genreId?: number, languageId?: number) {
+    try {
+      const genre = genreId || 0;
+      const language = languageId || 1;
+      const endpoint = `${API_ROUTES.JOKES.GET_SURPRISE_ME}?genre=${genre}&language=${language}`;
+      const response = await apiClient.get(endpoint, {
+        headers: {
+          ...this.getAuthHeaders(),
+        },
+      });
+      const responseData = response.data;
+      if (responseData?.success) {
+        return SuccessResponse(responseData.data);
+      }
+      return ErrorResponse(responseData?.message ?? "Something went wrong");
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch list of jokes for Scroll & LOL screen
+   * Corresponds to GET /joke/jokes
+   */
+  public async GetJokes(
+    {
+      limit,
+      selected_joke,
+      preferredJokes,
+      language,
+      type,
+      is_refresh_rings,
+      initialLang,
+    }: import("../types/JokeTypes").TGetJokesParams = {},
+    gluedin: any
+  ) {
+    try {
+      const queryParams = new URLSearchParams();
+      if (limit) queryParams.append("limit", limit.toString());
+      if (selected_joke) queryParams.append("selected_joke", selected_joke);
+      if (preferredJokes) queryParams.append("preferredJokes", preferredJokes);
+      if (language) queryParams.append("language", language);
+      if (type) queryParams.append("type", type);
+      if (is_refresh_rings) queryParams.append("is_refresh_ring", "true");
+
+      const endpoint = `${API_ROUTES.JOKES.GET_SCROLL_AND_LOL}${
+        queryParams.toString() ? `?${queryParams.toString()}` : ""
+      }`;
+
+      const response = await apiClient.get(endpoint, {
+        headers: {
+          ...this.getAuthHeaders(),
+        },
+      });
+
+      const videosId =
+        response.data?.data?.map((video: { id: string }) => video.id) ?? [];
+
+      if (
+        videosId?.length > 0 &&
+        selected_joke &&
+        !videosId.includes(selected_joke) &&
+        initialLang === language
+      ) {
+        return {
+          ok: false,
+          data: [],
+          message: "Maximum Joke Limit Reached for today.",
+          code: 1013,
+        };
+      }
+
+      const feedModule = new gluedin.GluedInFeedModule();
+      const getReactionData = await feedModule.Reactions(videosId);
+      const reactionResponse = getReactionData?.data ?? {};
+      const reactionResult = reactionResponse?.result ?? [];
+
+      const transformedData = response?.data?.data?.map(
+        (video: { id: string }) => {
+          const reactionType =
+            reactionResult?.find(
+              (item: { videoId: string }) => item?.videoId === video?.id
+            )?.reaction ?? "";
+          return {
+            ...video,
+            reactionType,
+            isReacted: reactionType ? true : false,
+          };
+        }
+      );
+
+      const responseData = response.data;
+      if (responseData?.success) {
+        return SuccessResponse(transformedData);
+      }
+
+      // Handle specific error code 1013
+      if (responseData?.code === 1013) {
+        return {
+          ok: false,
+          data: [],
+          message: responseData?.message,
+          code: 1013,
+        };
+      }
+
+      return ErrorResponse(responseData?.message);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch list of spicy tray jokes for Tadka Hub screen
+   * Corresponds to GET /joke/spicy-tray
+   */
+  public async GetSpicyTray(
+    {
+      limit,
+      selected_joke,
+      preferredJokes,
+      language,
+      type,
+      is_refresh_rings,
+      initialLang,
+    }: import("../types/JokeTypes").TGetJokesParams = {},
+    gluedin: any
+  ) {
+    try {
+      const queryParams = new URLSearchParams();
+      if (limit) queryParams.append("limit", limit.toString());
+      if (selected_joke) queryParams.append("selected_joke", selected_joke);
+      if (preferredJokes) queryParams.append("preferredJokes", preferredJokes);
+      if (language) queryParams.append("language", language);
+      if (type) queryParams.append("type", type);
+      if (is_refresh_rings) queryParams.append("is_refresh_ring", "true");
+
+      const endpoint = `${API_ROUTES.JOKES.GET_SPICY_TRAY}${
+        queryParams.toString() ? `?${queryParams.toString()}` : ""
+      }`;
+
+      const response = await apiClient.get(endpoint, {
+        headers: {
+          ...this.getAuthHeaders(),
+        },
+      });
+
+      const videosId =
+        response.data?.data?.map((video: { id: string }) => video.id) ?? [];
+
+      if (
+        videosId?.length > 0 &&
+        selected_joke &&
+        !videosId.includes(selected_joke) &&
+        initialLang === language
+      ) {
+        return {
+          ok: false,
+          data: [],
+          message: "Maximum Joke Limit Reached for today.",
+          code: 1013,
+        };
+      }
+
+      const feedModule = new gluedin.GluedInFeedModule();
+      const getReactionData = await feedModule.Reactions(videosId);
+      const reactionResponse = getReactionData?.data ?? {};
+      const reactionResult = reactionResponse?.result ?? [];
+
+      const transformedData = response?.data?.data?.map(
+        (video: { id: string }) => {
+          const reactionType =
+            reactionResult?.find(
+              (item: { videoId: string }) => item?.videoId === video?.id
+            )?.reaction ?? "";
+          return {
+            ...video,
+            reactionType,
+            isReacted: reactionType ? true : false,
+          };
+        }
+      );
+
+      const responseData = response.data;
+      if (responseData?.success) {
+        return SuccessResponse(transformedData);
+      }
+
+      // Handle specific error code 1013
+      if (responseData?.code === 1013) {
+        return {
+          ok: false,
+          data: [],
+          message: responseData?.message,
+          code: 1013,
+        };
+      }
+
+      return ErrorResponse(responseData?.message);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async SubmitJoke(data: TSubmitJokeParams) {
+    try {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (key === "file") {
+          if (data.format === "Text") {
+            const blob = new Blob([data.jokeText || ""], {
+              type: "text/plain",
+            });
+            const textFile = new File([blob], "joke.txt", {
+              type: "text/plain",
+            });
+            formData.append(key, textFile);
+          } else if (value instanceof FileList && value.length > 0) {
+            formData.append(key, value[0]);
+          }
+        } else if (value) {
+          formData.append(key, value.toString());
+        }
+      });
+      const response = await apiClient.post(
+        API_ROUTES.JOKES.SUBMIT_JOKE,
+        formData,
+        {
+          headers: {
+            ...this.getAuthHeaders(),
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+      if (!response) {
+        throw new Error("Something went wrong");
+      }
+      const responseData = response.data;
+      if (responseData?.success) {
+        const data = {
+          message: responseData.message,
+          ok: true,
+        };
+        return data;
+      } else if (
+        !responseData?.success &&
+        (responseData?.code === 1002 || responseData?.code === 1020)
+      ) {
+        const data = {
+          message: responseData?.message,
+          type: responseData?.code === 1020 ? LIMIT_EXCEED : OTHER_ERROR,
+        };
+        return {
+          ok: false,
+          data: data,
+        };
+      }
+      const keysArr: string[] = [];
+      Object.entries(responseData?.details?.validation_errors ?? {}).map(
+        ([key]) => {
+          keysArr.push(key);
+        }
+      );
+      const message = `Invalid ${keysArr?.[0]}`;
+      return ErrorResponse(message ?? "Something went wrong");
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async getUserSubmittedJokes() {
+    try {
+      const jokesResponse = await apiClient.get(
+        API_ROUTES.JOKES.GET_USER_SUBMITTED_JOKES,
+        {
+          headers: {
+            ...this.getAuthHeaders(),
+          },
+        }
+      );
+      const jokesResponseData = jokesResponse.data;
+      if (jokesResponseData?.success) {
+        return SuccessResponse(jokesResponseData.data);
+      }
+      return ErrorResponse(
+        jokesResponseData?.message ?? "Something went wrong"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async GetComicCoins() {
+    try {
+      const response = await apiClient.get(API_ROUTES.COMIC_COINS.GET_COINS, {
+        headers: {
+          ...this.getAuthHeaders(),
+        },
+      });
+      const responseData = response.data;
+      if (responseData?.success) {
+        return SuccessResponse(responseData.data);
+      }
+      return ErrorResponse(responseData?.message ?? "Something went wrong");
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async PostReelReaction(data: IReelReaction) {
+    try {
+      const response = await apiClient.post(
+        API_ROUTES.JOKES.POST_REACTION_ON_REEL,
+        data,
+        {
+          headers: {
+            ...this.getAuthHeaders(),
+          },
+        }
+      );
+      const responseData = response.data;
+      if (responseData?.success) {
+        return SuccessResponse(responseData.data);
+      }
+      return ErrorResponse(responseData?.message ?? "Something went wrong");
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async ActivateConsumption({ joke_id }: { joke_id: string }) {
+    try {
+      const response = await apiClient.patch(
+        API_ROUTES.JOKES.ACTIVATE_CONSUMPTION,
+        {
+          joke_id,
+        },
+        {
+          headers: {
+            ...this.getAuthHeaders(),
+          },
+        }
+      );
+      const responseData = response.data;
+      if (responseData?.success) {
+        return SuccessResponse(responseData.data);
+      }
+      throw new Error(responseData?.message ?? "Something went wrong");
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async getSignedUrl(key: string) {
+    try {
+      const endpoint = `${API_ROUTES.GCS.GET_SIGNED_URL}?key=${encodeURIComponent(key)}`;
+      const response = await apiClient.get(endpoint, {
+        headers: {
+          ...this.getAuthHeaders(),
+        },
+      });
+      const responseData = response.data;
+      // API returns { data: { url: "..." }, success: true }
+      if (responseData?.success && responseData?.data?.url) {
+        return SuccessResponse(responseData.data.url);
+      }
+      throw new Error(responseData?.message ?? "Failed to get signed URL");
+    } catch (error) {
+      throw error;
+    }
+  }
+}

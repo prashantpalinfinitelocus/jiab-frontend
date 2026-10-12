@@ -1,0 +1,31 @@
+import Script from 'next/script'
+import { GA_ID } from '@/config'
+
+const LoadGAScript = () => {
+  return (
+    <>
+      <Script
+        async
+        strategy='afterInteractive'
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+      />
+      <Script
+        id='ga-script'
+        strategy='afterInteractive'
+        dangerouslySetInnerHTML={{
+          __html: `
+             window.dataLayer = window.dataLayer || [];
+             function gtag(){dataLayer.push(arguments);}
+             gtag('js', new Date());
+             
+             gtag('config', '${GA_ID}', {
+               'debug_mode': true
+             });
+          `
+        }}
+      />
+    </>
+  )
+}
+
+export default LoadGAScript

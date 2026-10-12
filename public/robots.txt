@@ -1,0 +1,12 @@
+# Testing environment - keep it out of search results entirely.
+# The previous per-route allow/disallow list is in git history; restore it
+# before this file ever reaches production.
+
+User-agent: Googlebot
+Disallow: /
+
+User-agent: AdsBot-Google
+Disallow: /
+
+User-agent: *
+Disallow: /

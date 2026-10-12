@@ -1,0 +1,37 @@
+import { DialogContent, Dialog } from '@/components/ui/dialog'
+import { ICustomDialogWrapper } from '@/interfaces'
+import React from 'react'
+import SvgIcons from '../SvgIcons'
+import { ICONS_NAMES } from '@/constants'
+
+const CustomDialogWrapper: React.FC<ICustomDialogWrapper> = ({
+  open,
+  onClose,
+  children
+}) => {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className='p-0 bg-white max-w-[318px] rounded-[10px]'>
+        <div className='flex mb-[6px] justify-end pt-[16px] pr-[16px]'>
+          <button
+            className='outline-none border-none cursor-pointer'
+            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose && onClose();
+            }}
+          >
+            <SvgIcons
+              name={ICONS_NAMES.CROSS}
+              className='w-[20px] h-[20px] text-black'
+            />
+          </button>
+        </div>
+        <div>{children}</div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default CustomDialogWrapper
