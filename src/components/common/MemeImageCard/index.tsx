@@ -1,16 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { MemeImageCardProps } from "@/types/meme";
 import { generateImageurl, buildMemeShareUrl } from "@/utils";
-import { ICONS_NAMES, LOCAL_IMAGES, LANGUAGE_NAMES } from "@/constants";
+import { GA_EVENTS, ICONS_NAMES, LOCAL_IMAGES, LANGUAGE_NAMES } from "@/constants";
+import { triggerGAEvent } from "@/utils/gTagEvents";
 import { cn } from "@/lib/utils";
 import AktivGroteskText from "../AktivGroteskText";
 import SvgIcons from "../SvgIcons";
 import SurpriseMeCTA from "@/components/SurpriseMeCTA";
-import GreenCTA from "@/components/GreenCTA";
 import ReportPopupComponent from "../ReportPopupComponent";
 import { useCMSData } from "@/data";
-import { useLanguage } from "@/hooks/useLanguage";
-import { usePostMemeReaction, useVoteMeme, useIncrementMemeView, MemeStatus } from "@/api";
+import { usePostMemeReaction, useIncrementMemeView, useDeleteMeme, MemeStatus } from "@/api";
  
 import useAppSelector from "@/hooks/useSelector";
 
@@ -20,9 +19,48 @@ interface ReactionCounts {
   sad: number;
 }
 
+// GA names for the three reactions, as the PRD calls them.
+const REACTION_EVENT_NAMES = { happy: "laugh", neutral: "meh", sad: "angry" } as const;
+
+// Moderation state shown on the owner's own memes. The rejection reason is
+// never shown here - it only goes out in the notification.
+const STATUS_BADGES: Record<number, { label: string; className: string }> = {
+  [MemeStatus.Pending]: { label: "Under review", className: "bg-[#FFEE67] text-black" },
+  [MemeStatus.Approved]: { label: "Live", className: "bg-[#4FD077] text-black" },
+  [MemeStatus.Plagiarized]: { label: "Not featured", className: "bg-[#D9D9D9] text-black" },
+  [MemeStatus.Rejected]: { label: "Not featured", className: "bg-[#D9D9D9] text-black" },
+};
+
+// A view counts once the card has been at least half on screen this long.
+const VIEW_DWELL_MS = 5000;
+const SHARE_MESSAGE = "😂 Check out this meme on Sprite Meme Burst!";
+// Meme ids already counted as viewed in this browser session.
+const VIEWED_MEMES_KEY = "meme-burst-viewed";
+
+const wasViewedThisSession = (memeId: string): boolean => {
+  try {
+    const viewed: string[] = JSON.parse(sessionStorage.getItem(VIEWED_MEMES_KEY) || "[]");
+    return viewed.includes(memeId);
+  } catch {
+    return false;
+  }
+};
+
+const markViewedThisSession = (memeId: string) => {
+  try {
+    const viewed: string[] = JSON.parse(sessionStorage.getItem(VIEWED_MEMES_KEY) || "[]");
+    sessionStorage.setItem(VIEWED_MEMES_KEY, JSON.stringify([...viewed, memeId]));
+  } catch {
+    // Storage unavailable (private mode): the card's own ref still stops repeats.
+  }
+};
+
 const MemeImageCard: React.FC<MemeImageCardProps> = ({
   item,
   onVoteSuccess,
+  isOwn = false,
+  tab,
+  onDeleted,
 }) => {
   const memeImageCardRef = useRef<HTMLDivElement>(null);
   const { user } = useAppSelector((state) => state.profile);
@@ -35,47 +73,85 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
 
   const userImage = item?.avatarImage || user?.userImage || user?.profile_picture || "/profile-images/profile-image-guest.svg";
 
-  const { homePage, jokeBox } = useCMSData();
-  const { selectedLanguage } = useLanguage();
-  const isTamil = selectedLanguage === "ta";
+  const { homePage } = useCMSData();
 
   const { mutate: postReaction, isPending: isReacting } = usePostMemeReaction();
-  const { mutate: voteMeme, isPending: isVoting } = useVoteMeme();
   const { mutate: incrementMemeView } = useIncrementMemeView();
 
   const [localViewCount, setLocalViewCount] = useState<number>(item?.viewCount ?? 0);
   const hasViewIncrementedRef = useRef<boolean>(false);
   const [reportPopup, setReportPopup] = useState<boolean>(false);
+  const [isReported, setIsReported] = useState<boolean>(false);
   const [shareStatus, setShareStatus] = useState<
-    "copied" | "copiedNoImage" | "failed" | null
+    "copied" | "copiedNoImage" | "failed" | "reported" | "deleteFailed" | null
   >(null);
+  const [confirmDelete, setConfirmDelete] = useState<boolean>(false);
+  const { mutate: deleteMeme, isPending: isDeleting } = useDeleteMeme();
+
+  // My Memes passes isOwn; in the feed the creator's id tells us.
+  const isMine = isOwn || (!!item?.userId && !!user?.id && item.userId === user.id);
+
+  const handleDelete = () => {
+    if (!item?.id || isDeleting) return;
+    deleteMeme(item.id, {
+      onSuccess: (response: { ok: boolean }) => {
+        if (response?.ok) {
+          onDeleted?.(item.id);
+        } else {
+          setConfirmDelete(false);
+          setShareStatus("deleteFailed");
+        }
+      },
+      onError: () => {
+        setConfirmDelete(false);
+        setShareStatus("deleteFailed");
+      },
+    });
+  };
+
+  // Once per card and per session. The creator's own views go to GA but not
+  // to the view count.
+  const recordView = () => {
+    if (hasViewIncrementedRef.current || !item?.id) return;
+    hasViewIncrementedRef.current = true;
+    if (wasViewedThisSession(item.id)) return;
+    markViewedThisSession(item.id);
+
+    triggerGAEvent(GA_EVENTS.MEME_VIEW, {
+      meme_id: item.id,
+      tab: tab ?? (isOwn ? "my_memes" : "latest"),
+    });
+    if (isOwn) return;
+    incrementMemeView(item.id, {
+      onSuccess: (response: unknown) => {
+        const countFromResponse = (response as { data?: { viewCount?: unknown } })?.data?.viewCount;
+        setLocalViewCount((prev) =>
+          typeof countFromResponse === "number" ? countFromResponse : prev + 1
+        );
+      },
+      onError: () => {
+        setLocalViewCount((prev) => prev + 1);
+      },
+    });
+  };
+  const recordViewRef = useRef(recordView);
+  recordViewRef.current = recordView;
 
   useEffect(() => {
-    if (!memeImageCardRef.current || hasViewIncrementedRef.current) return;
-
     const element = memeImageCardRef.current;
+    if (!element || hasViewIncrementedRef.current) return;
+
+    let dwellTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && !hasViewIncrementedRef.current) {
-            hasViewIncrementedRef.current = true;
-            if (item?.id) {
-              incrementMemeView(item.id, {
-                onSuccess: (response: unknown) => {
-                  const countFromResponse =
-                    typeof (response as { data?: { viewCount?: unknown } })?.data?.viewCount === "number"
-                      ? (response as { data?: { viewCount: number } }).data!.viewCount
-                      : undefined;
-                  const next = typeof countFromResponse === "number" ? countFromResponse : localViewCount + 1;
-                  setLocalViewCount(next);
-                },
-                onError: () => {
-                  setLocalViewCount((prev) => prev + 1);
-                },
-              });
-            }
-            observer.unobserve(element);
-          }
+      ([entry]) => {
+        if (entry.intersectionRatio >= 0.5) {
+          dwellTimer ??= setTimeout(() => {
+            recordViewRef.current();
+            observer.disconnect();
+          }, VIEW_DWELL_MS);
+        } else {
+          clearTimeout(dwellTimer);
+          dwellTimer = undefined;
         }
       },
       { threshold: 0.5 }
@@ -83,10 +159,10 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
 
     observer.observe(element);
     return () => {
-      observer.unobserve(element);
+      clearTimeout(dwellTimer);
       observer.disconnect();
     };
-  }, [incrementMemeView, item?.id, localViewCount]);
+  }, [item?.id]);
 
   useEffect(() => {
     if (!shareStatus) return;
@@ -110,28 +186,42 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
   const activeReaction = getActiveReaction();
 
   const handleReaction = (reactionType: "happy" | "neutral" | "sad") => {
-    if (!canReact || isReacting) return;
+    // Nobody reacts to their own meme.
+    if (!canReact || isReacting || isOwn) return;
+    const isFirstReaction = activeReaction === null;
+    // Reacting counts as a view even before the dwell time is up.
+    recordView();
+
+    // Show the reaction straight away and roll it back if the request fails.
+    const previousClick = localReactionClick;
+    const previousCounts = localReactionCounts;
+    setLocalReactionClick({
+      happy: reactionType === "happy" ? 1 : 0,
+      neutral: reactionType === "neutral" ? 1 : 0,
+      sad: reactionType === "sad" ? 1 : 0,
+    });
+    setLocalReactionCounts((prev) => ({
+      ...prev,
+      [reactionType]: prev[reactionType] + 1,
+    }));
 
     postReaction(
       { memeId: item?.id, reaction: reactionType },
       {
         onSuccess: () => {
-          // Update local state
-          setLocalReactionClick({
-            happy: reactionType === "happy" ? 1 : 0,
-            neutral: reactionType === "neutral" ? 1 : 0,
-            sad: reactionType === "sad" ? 1 : 0,
+          triggerGAEvent(GA_EVENTS.MEME_REACT, {
+            meme_id: item?.id,
+            reaction: REACTION_EVENT_NAMES[reactionType],
+            is_first_reaction: isFirstReaction,
           });
-          setLocalReactionCounts((prev) => ({
-            ...prev,
-            [reactionType]: prev[reactionType] + 1,
-          }));
-          
-          
 
           if (onVoteSuccess) {
             onVoteSuccess();
           }
+        },
+        onError: () => {
+          setLocalReactionClick(previousClick);
+          setLocalReactionCounts(previousCounts);
         },
       }
     );
@@ -148,25 +238,14 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
     return "opacity-100";
   };
 
-  const handleVote = () => {
-    if (isVoting || item?.hasVoted) return;
-    voteMeme(
-      { asset_id: item?.id },
-      {
-        onSuccess: () => {
-          
-          if (onVoteSuccess) onVoteSuccess();
-        },
-      }
-    );
-  };
-
-  // Only an approved meme can be shared: an unapproved one is in no public
-  // list, so its link would land the recipient on the bare feed. Feed items
-  // carry no status at all - the feed serves approved memes only - so a
-  // missing status counts as shareable.
-  const canShare =
+  // Only a live (approved) meme gets reactions, views and Share: an unapproved
+  // one is in no public list, so its link would land the recipient on the bare
+  // feed. Feed items carry no status at all - the feed serves approved memes
+  // only - so a missing status counts as live.
+  const isLive =
     item?.status === undefined || item?.status === MemeStatus.Approved;
+
+  const statusBadge = isOwn ? STATUS_BADGES[item?.status] : undefined;
 
   const copyShareLink = async (url: string): Promise<boolean> => {
     try {
@@ -252,6 +331,8 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
     if (!item?.id) return;
 
     const shareUrl = buildMemeShareUrl(item.id);
+    const trackShare = (channel: "native" | "copy_link") =>
+      triggerGAEvent(GA_EVENTS.MEME_SHARE, { meme_id: item.id, channel });
     const title = `Meme by ${item?.username || "User"}`;
 
     // Desktop browsers cannot share files at all, so skip the proxy round-trip
@@ -262,9 +343,10 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
       try {
         await navigator.share({
           title,
-          text: `Check out this meme!\n${shareUrl}`,
+          text: `${SHARE_MESSAGE} ${shareUrl}`,
           files: [file],
         });
+        trackShare("native");
         return;
       } catch (error) {
         // Dismissing the share sheet is a choice, not a failure - stop here.
@@ -278,9 +360,10 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
       try {
         await navigator.share({
           title,
-          text: "Check out this meme!",
+          text: SHARE_MESSAGE,
           url: shareUrl,
         });
+        trackShare("native");
         return;
       } catch (error) {
         // Dismissing the share sheet is a choice, not a failure - stop here.
@@ -307,6 +390,7 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
       setShareStatus("failed");
       return;
     }
+    trackShare("copy_link");
     setShareStatus(file ? "copied" : "copiedNoImage");
   };
 
@@ -325,7 +409,11 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
         >
           <AktivGroteskText
             text={
-              shareStatus === "copied"
+              shareStatus === "reported"
+                ? "Thanks, we'll take a look."
+                : shareStatus === "deleteFailed"
+                ? "Couldn't delete. Please try again."
+                : shareStatus === "copied"
                 ? "Link copied"
                 : shareStatus === "copiedNoImage"
                 ? "Link copied (image not attached)"
@@ -356,22 +444,37 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
                   fontWeight="font-[500]"
                 />
               </div>
-              <div className="flex gap-[6px]">
+              {isOwn && onDeleted && (
                 <button
-                  className="cursor-pointer flex gap-[6px] border-none outline-none"
-                  onClick={() => setReportPopup(true)}
+                  className="cursor-pointer border-none outline-none"
+                  onClick={() => setConfirmDelete(true)}
                 >
                   <AktivGroteskText
-                    text="Report"
+                    text="Delete"
                     fontSize="text-[12px] text-[#FD0202]"
                     fontWeight="font-[400]"
                   />
-                  <SvgIcons
-                    name={ICONS_NAMES.REPORT}
-                    className="w-[20px] h-[20px]"
-                  />
                 </button>
-              </div>
+              )}
+              {!isMine && (
+                <div className="flex gap-[6px]">
+                  <button
+                    className="cursor-pointer flex gap-[6px] border-none outline-none disabled:cursor-default disabled:opacity-60"
+                    onClick={() => setReportPopup(true)}
+                    disabled={isReported}
+                  >
+                    <AktivGroteskText
+                      text={isReported ? "Reported" : "Report"}
+                      fontSize="text-[12px] text-[#FD0202]"
+                      fontWeight="font-[400]"
+                    />
+                    <SvgIcons
+                      name={ICONS_NAMES.REPORT}
+                      className="w-[20px] h-[20px]"
+                    />
+                  </button>
+                </div>
+              )}
             </div>
             <AktivGroteskText
               text={homePage.jokeDisclaimerText}
@@ -390,8 +493,18 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
           }}
-          className={`relative w-full h-[278px] md:h-[340px] flex items-center justify-center gap-[34px] rounded-t-[5px] overflow-hidden`}
+          className={cn(
+            "relative w-full h-[278px] md:h-[340px] flex items-center justify-center gap-[34px] overflow-hidden",
+            isLive ? "rounded-t-[5px]" : "rounded-[5px]"
+          )}
         >
+          {statusBadge && (
+            <div
+              className={`absolute top-[8px] left-[8px] z-10 px-[10px] py-[4px] rounded-[16px] text-[12px] font-[700] leading-[100%] ${statusBadge.className}`}
+            >
+              {statusBadge.label}
+            </div>
+          )}
           {item?.assetUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -403,6 +516,7 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
             <div className="text-gray-400">No image</div>
           )}
         </div>
+        {isLive && (
         <div className="bg-white border-x-[1px] border-b-[1px] border-[#D9D9D9] rounded-b-[5px] p-[8px] flex justify-between">
           <div className="flex gap-[10px] md:gap-[8px]">
             <div className={cn(getReactionOpacity("happy"))}>
@@ -412,7 +526,7 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
                 text={localReactionCounts?.happy?.toString() ?? "0"}
                 onClick={() => handleReaction("happy")}
                 isMeme={true}
-                disabled={!canReact || isReacting}
+                disabled={!canReact || isReacting || isOwn}
               />
             </div>
             <div className={cn(getReactionOpacity("neutral"))}>
@@ -421,7 +535,7 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
                 name={ICONS_NAMES.MAD}
                 text={localReactionCounts?.neutral?.toString() ?? "0"}
                 onClick={() => handleReaction("neutral")}
-                disabled={!canReact || isReacting}
+                disabled={!canReact || isReacting || isOwn}
                 isMeme={true}
               />
             </div>
@@ -431,36 +545,20 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
                 name={ICONS_NAMES.ANGRY}
                 text={localReactionCounts?.sad?.toString() ?? "0"}
                 onClick={() => handleReaction("sad")}
-                disabled={!canReact || isReacting}
+                disabled={!canReact || isReacting || isOwn}
                 isMeme={true}
               />
             </div>
-            {canShare && (
-              <SurpriseMeCTA
-                isReacted={false}
-                name={ICONS_NAMES.SHARE}
-                text={`Share`}
-                onClick={() => { void handleShare(); }}
-              />
-            )}
+            <SurpriseMeCTA
+              isReacted={false}
+              name={ICONS_NAMES.SHARE}
+              text={`Share`}
+              onClick={() => { void handleShare(); }}
+            />
           </div>
           <div className="flex gap-[12px]">
             <div className="flex items-center gap-[8px]">
-              <GreenCTA
-                onClick={handleVote}
-                text={item?.hasVoted ? jokeBox.voted : jokeBox.vote}
-                disabled={(item?.hasVoted ?? false) || isVoting}
-                className="leading-tight flex items-center justify-center"
-                paddingClass={cn(
-                  "px-[26px] py-[8px] md:px-[21px] md:py-[7px]",
-                  isTamil && "px-[26px] py-[8px] md:px-[16px] md:py-[7px]"
-                )}
-                fontSize={cn(
-                  "text-[12px] md:text-[16px]",
-                  isTamil && "text-[11px] md:text-[10px]"
-                )}
-                fontWeight="font-[700]"
-              />
+              {/* No contest is running, so there is no Vote button. */}
               <SurpriseMeCTA
                 isReacted={false}
                 name={ICONS_NAMES.VIEWS}
@@ -471,7 +569,42 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
             </div>
           </div>
         </div>
+        )}
       </div>
+
+      {confirmDelete && (
+        // Delete is permanent on the backend (file, reactions and votes go too),
+        // so it takes a second, explicit tap.
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-[16px] p-[24px] bg-white/95 md:rounded-[10px] rounded-[5px] text-center">
+          <AktivGroteskText
+            text="Delete this meme?"
+            fontSize="text-[16px]"
+            fontWeight="font-[700]"
+          />
+          <AktivGroteskText
+            text="It will be removed for good, with its reactions and views. This can't be undone."
+            fontSize="text-[12px]"
+            fontWeight="font-[400]"
+            className="text-[#313131]"
+          />
+          <div className="flex gap-[12px] w-full max-w-[280px]">
+            <button
+              onClick={() => setConfirmDelete(false)}
+              disabled={isDeleting}
+              className="flex-1 py-[10px] rounded-full border-2 border-black bg-white text-[14px] font-[600] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="flex-1 py-[10px] rounded-full bg-[#FD0202] text-white text-[14px] font-[600] disabled:opacity-50"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <ReportPopupComponent
         setOpen={setReportPopup}
@@ -480,6 +613,13 @@ const MemeImageCard: React.FC<MemeImageCardProps> = ({
         open={reportPopup}
         assetId={item?.id ?? ""}
         onClose={() => setReportPopup(false)}
+        showSuccessPopup={false}
+        onReported={() => {
+          // The popup only takes a source URL, so plagiarism is the one reason it can report.
+          triggerGAEvent(GA_EVENTS.MEME_REPORT, { meme_id: item?.id, reason: "plagiarised" });
+          setIsReported(true);
+          setShareStatus("reported");
+        }}
       />
       
     </div>

@@ -65,7 +65,7 @@ const MyMemes = ({ onCreateMeme }: MyMemesProps) => {
             className="md:h-[335px] h-[281px] md:w-[343px] w-[288px] rounded-[10px] md:mb-[36px] mb-[24px]" 
           />
           <div className="md:text-[24px] text-[14px] font-[500] text-center leading-[100%] text-black md:mb-[36px] mb-[24px]">
-          Your meme fridge is empty—time to restock. 🥤
+          No memes yet
           </div>
           
           {/* Action Buttons */}
@@ -88,7 +88,14 @@ const MyMemes = ({ onCreateMeme }: MyMemesProps) => {
         <div className="py-[16px] md:py-[24px] w-full">
           <div className="grid xs:grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-[16px] xl:gap-x-[60px] md:gap-x-[45px] md:gap-y-[24px]">
             {memes.map((meme) => (
-              <MemeImageCard key={meme.id} item={meme} />
+              <MemeImageCard
+                key={meme.id}
+                item={meme}
+                isOwn
+                onDeleted={(memeId) =>
+                  setMemes((prev) => prev.filter((m) => m.id !== memeId))
+                }
+              />
             ))}
           </div>
 

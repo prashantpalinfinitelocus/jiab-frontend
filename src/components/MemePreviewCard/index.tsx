@@ -11,6 +11,12 @@ type MemePreviewCardProps = {
   onRetry: () => void;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  /** The final meme is still being generated: Submit waits for it. */
+  isGenerating?: boolean;
+  /** Why the last submit failed; Submit stays enabled to try again. */
+  error?: string | null;
+  /** Shown in place of the image until imageSrc arrives. */
+  placeholder?: React.ReactNode;
 };
 
 const MemePreviewCard: React.FC<MemePreviewCardProps> = ({
@@ -23,6 +29,9 @@ const MemePreviewCard: React.FC<MemePreviewCardProps> = ({
   onRetry,
   onSubmit,
   isSubmitting = false,
+  isGenerating = false,
+  error,
+  placeholder,
 }) => {
   return (
     <>
@@ -58,7 +67,7 @@ const MemePreviewCard: React.FC<MemePreviewCardProps> = ({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {imageSrc ? (
             <img src={imageSrc} alt="meme preview" className="absolute inset-0 w-full h-full object-contain" />
-          ) : null}
+          ) : placeholder}
         </div>
       </div>
 
@@ -80,6 +89,12 @@ const MemePreviewCard: React.FC<MemePreviewCardProps> = ({
         </label>
       </div>
 
+      {error && (
+        <p role="alert" className="text-center md:text-[14px] text-[12px] text-red mb-3 max-w-[483px] mx-auto">
+          {error}
+        </p>
+      )}
+
       {/* Action Buttons */}
       <div className="flex flex-col gap-3 max-w-[483px] mx-auto">
         <button
@@ -92,10 +107,10 @@ const MemePreviewCard: React.FC<MemePreviewCardProps> = ({
           Retry
         </button>
         <GreenCTA
-          text={isSubmitting ? "Submitting..." : "Submit"}
+          text={isSubmitting ? "Submitting..." : isGenerating ? "Creating your meme..." : "Submit"}
           onClick={onSubmit}
-          className={`w-full ${!termsAccepted || isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-          disabled={!termsAccepted || isSubmitting}
+          className={`w-full ${!termsAccepted || isSubmitting || isGenerating ? "opacity-50 cursor-not-allowed" : ""}`}
+          disabled={!termsAccepted || isSubmitting || isGenerating}
         />
       </div>
     </>

@@ -38,6 +38,11 @@ const MemeBurstPage = () => {
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState<string>("");
+  // ?tab=trending opens Trending, e.g. from the "made it to Trending" notification.
+  const [activeTab, setActiveTab] = useState<"Latest" | "Trending">(
+    searchParams.get("tab") === "trending" ? "Trending" : "Latest"
+  );
+  const isTrending = activeTab === "Trending";
   const sharedMemeHandledRef = useRef(false);
   const sharedMemePagesLoadedRef = useRef(0);
 
@@ -48,12 +53,12 @@ const MemeBurstPage = () => {
     language: languageId,
     limit: PAGE_SIZE,
     q: search || undefined,
-    trending: false,
+    trending: isTrending,
   });
 
   const loadInitialMemes = useCallback(() => {
     fetchMemes(
-      { language: languageId, limit: PAGE_SIZE, q: search || undefined, trending: false },
+      { language: languageId, limit: PAGE_SIZE, q: search || undefined, trending: isTrending },
       {
         onSuccess: (response: ApiResponse) => {
           if (response?.ok && response?.data) {
@@ -61,15 +66,16 @@ const MemeBurstPage = () => {
             const nextCursor = response.data.cursor;
             setMemeData(items);
             setCursor(nextCursor);
-            // Show CTA only if we likely have a next page
-            const likelyHasMore = !!nextCursor && items.length === PAGE_SIZE;
+            // The backend can return a short page that still has more after it
+            // (staging's second page held 5 of 6), so trust the cursor, not the size.
+            const likelyHasMore = !!nextCursor && items.length > 0;
             setHasMore(likelyHasMore);
             setInitialLoading(false);
           }
         },
       }
     );
-  }, [fetchMemes, languageId, search]);
+  }, [fetchMemes, languageId, search, isTrending]);
 
   useEffect(() => {
     // Reset list when language changes from filter
@@ -91,17 +97,21 @@ const MemeBurstPage = () => {
     if (!cursor) return;
 
     fetchMemes(
-      { language: languageId, limit: PAGE_SIZE, cursor, q: search || undefined, trending: false },
+      { language: languageId, limit: PAGE_SIZE, cursor, q: search || undefined, trending: isTrending },
       {
         onSuccess: (response: ApiResponse) => {
           if (response?.ok && response?.data) {
             const newItems = response.data.items || [];
             const nextCursor = response.data.cursor;
             const cursorUnchanged = nextCursor === cursor;
-            setMemeData((prev) => [...prev, ...newItems]);
+            // The backend can repeat a meme across pages; show each card once.
+            setMemeData((prev) => {
+              const seen = new Set(prev.map((m) => m.id));
+              return [...prev, ...newItems.filter((m) => !seen.has(m.id))];
+            });
             setCursor(nextCursor);
             // Determine if we've reached the end
-            const reachedEnd = !nextCursor || newItems.length < PAGE_SIZE || cursorUnchanged || newItems.length === 0;
+            const reachedEnd = !nextCursor || cursorUnchanged || newItems.length === 0;
             setHasMore(!reachedEnd);
           } else {
             setHasMore(false);
@@ -112,7 +122,7 @@ const MemeBurstPage = () => {
         },
       }
     );
-  }, [cursor, isPending, fetchMemes, languageId, search]);
+  }, [cursor, isPending, fetchMemes, languageId, search, isTrending]);
 
   // A shared link (/meme-burst?selected_meme=<id>) lands on the feed, so walk
   // forward through the pages until that meme is loaded, then scroll to it.
@@ -192,6 +202,29 @@ const MemeBurstPage = () => {
           </div>
         </div>
 
+        <div className="flex justify-center w-full mt-[16px] md:mt-[24px]">
+          <div className="flex items-center bg-white rounded-full p-1 relative">
+            <div
+              className={`absolute transition-all duration-300 ease-in-out top-1 h-[calc(100%-8px)] rounded-full bg-green ${
+                isTrending ? "left-[50%] right-1" : "left-1 right-[50%]"
+              }`}
+            />
+            {(["Latest", "Trending"] as const).map((tabName) => (
+              <button
+                key={tabName}
+                onClick={() => setActiveTab(tabName)}
+                className={`min-w-[80px] px-6 h-[36px] flex items-center justify-center rounded-full text-sm font-medium transition-all duration-200 relative z-10 flex-1 ${
+                  activeTab === tabName ? "text-white" : "text-gray-600 hover:text-black"
+                }`}
+              >
+                {tabName === "Latest"
+                  ? cmsData.homePage.latestButtonText
+                  : cmsData.homePage.trendingButtonText}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="py-[16px] md:py-[24px]">
           <div className="grid xs:grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-[16px] xl:gap-x-[60px] md:gap-x-[45px] md:gap-y-[24px]">
             {memeData?.map((meme) => (
@@ -207,6 +240,7 @@ const MemeBurstPage = () => {
                 <MemeImageCard
                   item={meme}
                   onVoteSuccess={handleVoteSuccess}
+                  tab={isTrending ? "trending" : "latest"}
                 />
               </div>
             ))}

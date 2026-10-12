@@ -31,7 +31,9 @@ const ReportPopupComponent = ({
   setOpen,
   assetId,
   userId,
-  actingUserId
+  actingUserId,
+  onReported,
+  showSuccessPopup = true
 }: {
   open: boolean
   onClose: () => void
@@ -39,6 +41,9 @@ const ReportPopupComponent = ({
   assetId: string
   userId: string
   actingUserId: string
+  onReported?: () => void
+  /** The jokes success popup, which points to the joke box. Memes show their own toast instead. */
+  showSuccessPopup?: boolean
 }) => {
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
@@ -117,8 +122,9 @@ const ReportPopupComponent = ({
   useEffect(() => {
     if (reportData?.ok) {
       triggerReportCDPEvent()
+      onReported?.()
       setOpen?.(false)
-      setOpen2(true)
+      if (showSuccessPopup) setOpen2(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportData])

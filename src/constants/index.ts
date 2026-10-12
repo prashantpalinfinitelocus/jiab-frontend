@@ -261,6 +261,10 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   bho: "Bhojpuri",
   mai: "Maithili",
   tu: "Tulu",
+  // The keys /reference-data/languages actually sends for these three.
+  bh: "Bhojpuri",
+  ka: "Kannada",
+  ba: "Bengali",
 };
 
 export const REFER_NOW_MODAL_DATA = {
@@ -1088,7 +1092,19 @@ export const GA_EVENTS = {
   SPRITE_J24_HUMOR_PREF_SKIP: "profiling_humor_pref_modal_skip",
   SPRITE_J24_DAYPART_VIEWED: "profiling_daypart_modal_viewed",
   SPRITE_J24_DAYPART_SUBMIT: "profiling_daypart_modal_submit",
-  SPRITE_J24_DAYPART_SKIP: "profiling_daypart_modal_skip"
+  SPRITE_J24_DAYPART_SKIP: "profiling_daypart_modal_skip",
+  // Meme Burst
+  MEME_ENTRY_CLICK: "meme_entry_click",
+  MEME_TEMPLATE_SEARCH: "template_search",
+  MEME_TEMPLATE_SELECT: "template_select",
+  MEME_TEXT_ADDED: "meme_text_added",
+  MEME_PREVIEW_VIEW: "meme_preview_view",
+  MEME_SUBMIT: "meme_submit",
+  MEME_SUBMIT_FAIL: "meme_submit_fail",
+  MEME_VIEW: "meme_view",
+  MEME_REACT: "meme_react",
+  MEME_SHARE: "meme_share",
+  MEME_REPORT: "meme_report",
 };
 
 export const FLOOD_LIGHT_EVENTS = {

@@ -13,6 +13,9 @@ import { useGetMemeFeedQuery, IMemeItem } from "@/api";
 import { useLanguage } from "@/hooks/useLanguage";
 import { convertLanguageMnemonicToId } from "@/utils/languageUtils";
 
+// The home carousel shows up to this many memes; View All has the rest.
+const HOME_MEME_LIMIT = 9;
+
 interface ApiResponse {
   ok: boolean;
   data?: {
@@ -35,21 +38,21 @@ const HomePageMemeBurst = ({
   const [jokeBoxApi, setJokeBoxApi] = useState<CarouselApi>();
   const [activeTab, setActiveTab] = useState<"Latest" | "Trending">("Latest");
   const [jokeBoxCurrent, setJokeBoxCurrent] = useState(0);
-  const [jokeBoxPageCount, setJokeBoxPageCount] = useState(3);
+  const [jokeBoxPageCount, setJokeBoxPageCount] = useState(0);
   const [memeData, setMemeData] = useState<IMemeItem[]>([]);
 
   const languageId = convertLanguageMnemonicToId(selectedLanguage);
   
   const { mutate: fetchMemes } = useGetMemeFeedQuery({
     language: languageId,
-    limit: 6,
+    limit: HOME_MEME_LIMIT,
     trending: activeTab === "Trending",
   });
 
   // Fetch memes when component mounts or language changes
   const loadMemes = useCallback(() => {
     fetchMemes(
-      { language: languageId, limit: 6, trending: activeTab === "Trending" },
+      { language: languageId, limit: HOME_MEME_LIMIT, trending: activeTab === "Trending" },
       {
         onSuccess: (response: ApiResponse) => {
           if (response?.ok && response?.data) {
@@ -70,20 +73,16 @@ const HomePageMemeBurst = ({
     jokeBoxApi.on("select", () => {
       setJokeBoxCurrent(jokeBoxApi.selectedScrollSnap());
     });
+    // One dot per carousel page, however many memes came back.
+    const updatePageCount = () => setJokeBoxPageCount(jokeBoxApi.scrollSnapList().length);
+    updatePageCount();
+    jokeBoxApi.on("reInit", updatePageCount);
   }, [jokeBoxApi]);
 
   const goToJokeBoxPage = (pageIndex: number) => {
     if (!jokeBoxApi) return;
     jokeBoxApi.scrollTo(pageIndex);
   };
-
-  useEffect(() => {
-    if (width > 768) {
-      setJokeBoxPageCount(2);
-    } else {
-      setJokeBoxPageCount(6);
-    }
-  }, [width]);
 
   useEffect(() => {
     if (activeTab) {
@@ -170,6 +169,7 @@ const HomePageMemeBurst = ({
                         <MemeImageCard
                           item={item}
                           onVoteSuccess={handleVoteSuccess}
+                          tab={activeTab === "Trending" ? "trending" : "latest"}
                         />
                       </div>
                     </CarouselItem>
@@ -195,6 +195,7 @@ const HomePageMemeBurst = ({
                         <MemeImageCard
                           item={item}
                           onVoteSuccess={handleVoteSuccess}
+                          tab={activeTab === "Trending" ? "trending" : "latest"}
                         />
                       </div>
                     </CarouselItem>
@@ -203,7 +204,7 @@ const HomePageMemeBurst = ({
               </Carousel>
             )}
           </div>
-          {memeData?.length > 3 && (
+          {jokeBoxPageCount > 1 && (
             <div className="flex justify-center md:gap-2 gap-[1.77px] mt-[8px]">
               {Array.from({ length: jokeBoxPageCount }, (_, pageIndex) => (
                 <button

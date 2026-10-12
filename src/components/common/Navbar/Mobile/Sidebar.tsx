@@ -75,6 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, spriteLogo }) => {
     { label: cmsData.navBar.pickYourMood, href: '/pick-mood' },
     { label: cmsData.navBar.jokeBox, href: '/user-generated-jokes' },
     { label: cmsData.navBar.hallOfLame, href: '/hall-of-lame' },
+    { label: cmsData.navBar.memeBurst, href: '/meme-burst' },
     { label: cmsData.navBar.referAFriend, href: '/' },
     { label: cmsData.navBar.haveAnInviteCode, href: '/' }
   ]
@@ -392,6 +393,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, spriteLogo }) => {
                               onClose()
                             }}
                             key={subItem.label}
+                            className='block px-[10px] py-[6px] text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-all duration-200 text-left'
+                          >
+                            {subItem.label}
+                          </button>
+                        </li>
+                      )
+                    }
+                    if (subItem.label === cmsData.navBar.memeBurst) {
+                      return (
+                        <li key={subIndex} className='text-xs ml-8'>
+                          <button
+                            onClick={() => {
+                              triggerGAEvent(GA_EVENTS.MEME_ENTRY_CLICK, { entry_point: 'explore' })
+                              router.push(subItem.href)
+                              onClose()
+                            }}
                             className='block px-[10px] py-[6px] text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-all duration-200 text-left'
                           >
                             {subItem.label}

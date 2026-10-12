@@ -3,17 +3,24 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { MemeTemplate } from "@/types/meme";
+import { GA_EVENTS } from "@/constants";
+import { triggerGAEvent } from "@/utils/gTagEvents";
 
 interface MasonryGridProps {
   templates: MemeTemplate[];
-  searchQuery?: string;
+  /** The search matched nothing: say so above the templates that are still shown. */
+  showNoResults?: boolean;
 }
 
-const MasonryGrid: React.FC<MasonryGridProps> = ({ templates, searchQuery = "" }) => {
+const MasonryGrid: React.FC<MasonryGridProps> = ({ templates, showNoResults = false }) => {
   const router = useRouter();
   
   // Handle template click - store template data in sessionStorage
   const handleTemplateClick = (template: MemeTemplate) => {
+    triggerGAEvent(GA_EVENTS.MEME_TEMPLATE_SELECT, {
+      template_id: template.id,
+      type: template.type === "Sticker" ? "sticker" : "gif",
+    });
     try {
       sessionStorage.setItem(`template-${template.id}`, JSON.stringify(template));
     } catch (e) {
@@ -22,31 +29,23 @@ const MasonryGrid: React.FC<MasonryGridProps> = ({ templates, searchQuery = "" }
     router.push(`/create-memes/${template.id}`);
   };
 
-  // Show empty state if no templates and search query exists
-  if (templates.length === 0 && searchQuery) {
-    return (
-      <div className="flex flex-col items-center justify-center md:py-[80px] py-[60px]">
-        <div className="max-w-[600px] mx-auto px-[16px]">
-          <h2 className="md:text-[32px] text-[16px] font-[700] text-center md:mb-[20px] mb-[16px] leading-none">
-            OOPSIE DAISY!
-          </h2>
+  return (
+    <>
+      {showNoResults && (
+        <div className="flex flex-col items-center justify-center md:pb-[40px] pb-[24px] px-[16px]">
           <Image
             src="/assets/images/empty-state-create-meme.png"
             alt="No results found"
             width={420}
             height={294}
-            className="md:w-[420px] w-[220px] md:h-[294px] h-[154px] mx-auto md:mb-[32px] mb-[16px]"
+            className="md:w-[280px] w-[160px] md:h-[196px] h-[112px] mx-auto md:mb-[20px] mb-[12px]"
           />
-          <p className="md:text-[20px] text-[12px] text-center text-black leading-none w-[220px] md:w-full font-[500]">
-            &quot;{searchQuery}&quot; is currently out of stock in the humour aisle!
+          <p className="md:text-[20px] text-[12px] text-center text-black leading-tight max-w-[600px] font-[500]">
+            Nothing fizzed up for that one. Try a different word or pick from the templates below.
           </p>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <>
       {/* Desktop Masonry Layout */}
       <div className="hidden md:block">
         <div className="columns-4 gap-[16px]" style={{ columnFill: 'balance' }}>

@@ -5,8 +5,8 @@ import React from 'react'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useRouter } from 'next/navigation'
-import { triggerFloodLightEvents } from '@/utils/gTagEvents'
-import { FLOOD_LIGHT_EVENTS } from '@/constants'
+import { triggerFloodLightEvents, triggerGAEvent } from '@/utils/gTagEvents'
+import { FLOOD_LIGHT_EVENTS, GA_EVENTS } from '@/constants'
 interface HeaderProps {
   title: string
   description?: string
@@ -77,6 +77,8 @@ const Header: React.FC<HeaderProps> = ({
               triggerFloodLightEvents(
                 FLOOD_LIGHT_EVENTS.Sprite_JIAB25_JokeBox_Counter
               )
+            } else if (viewAllUrl === '/meme-burst') {
+              triggerGAEvent(GA_EVENTS.MEME_ENTRY_CLICK, { entry_point: 'view_all' })
             }
             router.push(viewAllUrl)
           }}

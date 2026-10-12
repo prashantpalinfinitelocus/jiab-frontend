@@ -3,6 +3,8 @@ import React from "react";
 // import ScrollableBanner from "@/components/common/ScrollableBanner";
 import Banner from "../common/Banner/Banner";
 import Link from "next/link";
+import { GA_EVENTS } from "@/constants";
+import { triggerGAEvent } from "@/utils/gTagEvents";
 // import { LANGUAGE_MNEMONICS } from "@/constants";
 
 const MemeburstBanner = () => {
@@ -41,7 +43,11 @@ const MemeburstBanner = () => {
 
 
   return (
-    <Link href="/create-memes" className="">
+    <Link
+      href="/create-memes"
+      className=""
+      onClick={() => triggerGAEvent(GA_EVENTS.MEME_ENTRY_CLICK, { entry_point: "banner" })}
+    >
       <Banner
         type="image"
         src="/assets/meme-burst/mb-english.png"

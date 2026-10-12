@@ -5,7 +5,8 @@ import MasonryGrid from "./MasonryGrid";
 import LoadingModal from "../common/LoadingModal";
 import { MemeTemplate } from "@/types/meme";
 import { useGetTrendingTemplates, useGetAutocomplete, useSearchTemplates } from "@/api/hooks/MemeHooks";
-import { MEME_TEMPLATES, SPRITE_TEMPLATES } from "@/constants";
+import { GA_EVENTS, MEME_TEMPLATES, SPRITE_TEMPLATES } from "@/constants";
+import { triggerGAEvent } from "@/utils/gTagEvents";
 
 // The backend has no cap on limit, so ask for far more than the catalog holds to get every template.
 const TEMPLATES_LIMIT = 1000;
@@ -14,6 +15,7 @@ const CreateMeme = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [isUserTyping, setIsUserTyping] = useState<boolean>(false);
+  const [debouncedAutocompleteQuery, setDebouncedAutocompleteQuery] = useState<string>("");
 
   const apiType = "all";
 
@@ -35,9 +37,10 @@ const CreateMeme = () => {
   const isLoading = shouldUseSearch ? isSearchLoading : isTrendingLoading;
   const error = shouldUseSearch ? searchError : trendingError;
 
-  // Fetch autocomplete suggestions - only when user is actively typing
+  // Fetch autocomplete suggestions - only while the user is typing, from the
+  // 2nd character, and not on every keystroke
   const { data: autocompleteData } = useGetAutocomplete({
-    q: isUserTyping ? searchQuery : "",
+    q: isUserTyping && debouncedAutocompleteQuery.trim().length >= 2 ? debouncedAutocompleteQuery : "",
     type: apiType,
     limit: 5
   });
@@ -49,6 +52,11 @@ const CreateMeme = () => {
       ? autocompleteData.data.map((item: { name: string }) => item.name)
       : [];
   }, [autocompleteData, isUserTyping]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedAutocompleteQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Debounce search query with 300ms delay - only trigger after 3 letters
   useEffect(() => {
@@ -65,6 +73,15 @@ const CreateMeme = () => {
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // One template_search per query, once its results are in.
+  useEffect(() => {
+    if (!shouldUseSearch || isSearchLoading || !searchData) return;
+    triggerGAEvent(GA_EVENTS.MEME_TEMPLATE_SEARCH, {
+      query: debouncedSearchQuery.trim(),
+      results_count: Array.isArray(searchData.data) ? searchData.data.length : 0,
+    });
+  }, [shouldUseSearch, isSearchLoading, searchData, debouncedSearchQuery]);
 
   // Handle autocomplete selection - immediately trigger search
   const handleAutocompleteSelect = (value: string) => {
@@ -166,6 +183,13 @@ const CreateMeme = () => {
     ];
   }, [data, shouldUseSearch, debouncedSearchQuery]);
 
+  // Our own templates always lead the grid, so a search that matched nothing
+  // still has them - the empty state sits above them instead of replacing them.
+  const hasNoSearchResults =
+    shouldUseSearch &&
+    !isLoading &&
+    filteredTemplates.length === SPRITE_TEMPLATES.length;
+
   return (
     <>
       <LoadingModal isOpen={isLoading} text="Loading templates..." />
@@ -189,9 +213,9 @@ const CreateMeme = () => {
           Failed to load templates. Please try again.
         </div>
       )}
-      <MasonryGrid 
-        templates={filteredTemplates} 
-        searchQuery={shouldUseSearch ? debouncedSearchQuery : ""}
+      <MasonryGrid
+        templates={filteredTemplates}
+        showNoResults={hasNoSearchResults}
       />
     </>
   );

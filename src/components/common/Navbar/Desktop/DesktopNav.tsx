@@ -121,6 +121,7 @@ const DesktopNav: React.FC<ILogoAndProfileImageProps> = ({
     { id: 3, label: cmsData.navBar.pickYourMood, href: '/pick-mood' },
     { id: 4, label: cmsData.navBar.jokeBox, href: '/user-generated-jokes' },
     { id: 5, label: cmsData.navBar.hallOfLame, href: '/hall-of-lame' },
+    { id: 8, label: cmsData.navBar.memeBurst, href: '/meme-burst' },
     { id: 6, label: cmsData.navBar.referAFriend, href: '/refer' },
     { id: 7, label: cmsData.navBar.haveAnInviteCode, href: '/invite' }
   ]
@@ -306,6 +307,24 @@ const DesktopNav: React.FC<ILogoAndProfileImageProps> = ({
                                 dispatch(updateLoginModal({ loginModal: true }))
                               }
                               setIsExploreDropdownOpen(false)
+                            }}
+                            key={item.id}
+                            className={cn(
+                              'px-[20px] py-[10px] text-start hover:bg-gray-50 text-[18px] font-normal leading-tight',
+                              isTamil && 'text-[14px]'
+                            )}
+                          >
+                            {item.label}
+                          </button>
+                        )
+                      }
+                      if (item.label === cmsData.navBar.memeBurst) {
+                        return (
+                          <button
+                            onClick={() => {
+                              triggerGAEvent(GA_EVENTS.MEME_ENTRY_CLICK, { entry_point: 'explore' })
+                              setIsExploreDropdownOpen(false)
+                              router.push(item.href)
                             }}
                             key={item.id}
                             className={cn(

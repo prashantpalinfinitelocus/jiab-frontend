@@ -99,6 +99,15 @@ export const useIncrementMemeView = () => {
 };
 
 /**
+ * Hook to delete one of the user's own memes
+ */
+export const useDeleteMeme = () => {
+  return useMutation({
+    mutationFn: (memeId: string) => memeInstance.DeleteMeme(memeId),
+  });
+};
+
+/**
  * Hook to fetch user memes
  */
 export const useGetUserMemesQuery = (params: IGetUserMemesParams = {}) => {

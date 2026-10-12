@@ -200,6 +200,29 @@ export class MemeService extends MainService {
    * Increment meme view count
    * POST /memes/{meme_id}/view
    */
+  /**
+   * Delete one of the user's own memes (owner only; permanent)
+   * DELETE /memes/{meme_id}
+   */
+  public async DeleteMeme(memeId: string) {
+    try {
+      const response = await apiClient.delete(API_ROUTES.MEMES.DELETE(memeId), {
+        headers: {
+          ...this.getAuthHeaders(),
+        },
+      });
+
+      const responseData = response.data;
+      if (responseData?.success || response.status === 200) {
+        return SuccessResponse({ memeId });
+      }
+      return ErrorResponse(responseData?.message ?? "Couldn't delete this meme");
+    } catch (error) {
+      console.error("Failed to delete meme:", error);
+      throw error;
+    }
+  }
+
   public async IncrementMemeView(memeId: string) {
     try {
       const endpoint =

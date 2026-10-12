@@ -102,6 +102,10 @@ const Login = () => {
         );
         dispatch(updateLoginDisable({ disableLoginForOneMinute: true }));
         setError(cmsData.validation.loginModalExceed);
+      } else {
+        // Any other failure (invalid number, timeout, server error) used to be
+        // dropped silently, leaving the modal open with no hint of what happened.
+        setError(otpData?.message || "Couldn't send OTP. Please try again.");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

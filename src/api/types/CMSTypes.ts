@@ -72,6 +72,7 @@ export type TCMSResponse = {
       explore: string;
       scroll_and_lol: string;
       pj_challenge: string;
+      meme_burst?: string;
       pick_your_mood: string;
       joke_Box: string;
       hall_of_lame: string;

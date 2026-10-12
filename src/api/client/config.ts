@@ -140,6 +140,7 @@ export const API_ROUTES = {
     POST_REACTION: (memeId: string) => `/memes/react/${memeId}`,
     VOTE: "/memes/vote",
     VIEW: (memeId: string) => `/memes/view/${memeId}`,
+    DELETE: (memeId: string) => `/memes/${memeId}`,
     GET_USER: "/memes/user",
     SUBMIT: "/memes",
     GENERATE: "/meme-generator/generate",

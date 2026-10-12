@@ -19,6 +19,8 @@ export interface IMemeItem {
   reactionClick: IMemeReactionClick;
   reactionCounts: IMemeReactionCounts;
   username: string;
+  /** The creator, so a viewer's own memes can be told apart in the feed. */
+  userId?: string;
   viewCount: number;
 }
 

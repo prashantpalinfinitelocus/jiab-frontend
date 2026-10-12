@@ -62,7 +62,7 @@ export class LoginService extends MainService {
     } catch (error) {
       if (error instanceof AxiosError) {
         return ErrorResponse(
-          error.response?.data?.message || "Network error occurred"
+          error.response?.data?.message || "Couldn't send OTP. Please try again."
         );
       }
       return ErrorResponse("An unexpected error occurred");

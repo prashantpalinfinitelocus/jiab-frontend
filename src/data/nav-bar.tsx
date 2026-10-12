@@ -7,6 +7,7 @@ export interface NavBarData {
   pickYourMood: string;
   jokeBox: string;
   hallOfLame: string;
+  memeBurst: string;
   referAFriend: string;
   haveAnInviteCode: string;
   navBarInsideExploreBannerHeading: string;
@@ -38,6 +39,7 @@ export const mapNavBarData = (
     pickYourMood: navBarCMS?.pick_your_mood ?? "Pick Your Mood",
     jokeBox: navBarCMS?.joke_Box ?? "Joke Box",
     hallOfLame: navBarCMS?.hall_of_lame ?? "Hall of Lame",
+    memeBurst: navBarCMS?.meme_burst ?? "Meme Burst",
     referAFriend: navBarCMS?.refer_a_friend ?? "Refer a Friend",
     haveAnInviteCode: navBarCMS?.have_an_invite_code ?? "Have an Invite Code?",
     navBarInsideExploreBannerHeading:
@@ -69,6 +71,7 @@ export const defaultNavBarData: NavBarData = {
   pickYourMood: "Pick Your Mood",
   jokeBox: "Joke Box",
   hallOfLame: "Hall of Lame",
+  memeBurst: "Meme Burst",
   referAFriend: "Refer a Friend",
   haveAnInviteCode: "Have an Invite Code?",
   navBarInsideExploreBannerHeading: "Explore Banner",

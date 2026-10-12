@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { MemeTemplate } from "@/types/meme";
@@ -10,7 +10,11 @@ import MemePreviewCard from "@/components/MemePreviewCard";
 import { useSubmitMeme, useGenerateMeme } from "@/api/hooks/MemeHooks";
 import LoadingModal from "@/components/common/LoadingModal";
 import MemeSubmitSuccessModal from "@/components/MemeSubmitSuccessModal";
-import { MEME_TEMPLATES, isAllowedMemeSourceUrl } from "@/constants";
+import CustomPopupWrapper from "@/components/common/CustomPopupWrapper";
+import { GA_EVENTS, ICONS_NAMES, MEME_TEMPLATES, isAllowedMemeSourceUrl } from "@/constants";
+import { useLanguage } from "@/hooks/useLanguage";
+import { convertLanguageMnemonicToId } from "@/utils/languageUtils";
+import { triggerGAEvent } from "@/utils/gTagEvents";
 
 
 
@@ -27,6 +31,66 @@ const MEME_TEXT_MAX_LINES = 2;
 // The Sprite logo sits on the meme like a watermark.
 const LOGO_OPACITY = 0.25;
 
+const memeTextStyle: React.CSSProperties = {
+  WebkitTextStroke: "1px #000",
+  fontSize: `${MEME_FONT_SIZE}px`,
+  lineHeight: `${MEME_LINE_HEIGHT}px`,
+  width: "calc(100% - 40px)",
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: MEME_TEXT_MAX_LINES,
+  overflow: "hidden",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+  letterSpacing: "0%",
+};
+
+// The meme as CSS layers over the backdrop: the editor's live preview, and the
+// preview screen's stand-in while the generator builds the real GIF.
+const MemeLayers = ({
+  imageURL,
+  topText,
+  bottomText,
+}: {
+  imageURL?: string;
+  topText: string;
+  bottomText: string;
+}) => (
+  <>
+    {/* Template image contained between the text bands (56px top, 96px
+        bottom for the text and logo) so the text never covers the GIF. */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      src={imageURL}
+      alt="template"
+      className="absolute inset-x-0 top-[56px] h-[calc(100%-152px)] w-full object-contain"
+    />
+
+    {/* Top text */}
+    <div className="absolute inset-x-0 top-0 h-[56px] flex items-center justify-center">
+      <div className="text-white text-center font-[700]" style={memeTextStyle}>
+        {topText.trim() ? topText.toUpperCase() : ""}
+      </div>
+    </div>
+
+    {/* Bottom text, above the logo */}
+    <div className="absolute inset-x-0 bottom-[46px] h-[50px] flex items-center justify-center">
+      <div className="text-white text-center font-[700]" style={memeTextStyle}>
+        {bottomText.trim() ? bottomText.toUpperCase() : ""}
+      </div>
+    </div>
+
+    {/* Sprite logo at bottom-right, 64px wide with a 12px margin (matches the canvas export) */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      src="/assets/meme-burst/sprite-logo-white.png"
+      alt="sprite-logo"
+      className="absolute"
+      style={{ right: 12, bottom: 12, width: 64, height: "auto", opacity: LOGO_OPACITY }}
+    />
+  </>
+);
+
 const MemeEditorPage = () => {
   const params = useParams();
   const id = params?.id as string;
@@ -36,7 +100,9 @@ const MemeEditorPage = () => {
   const { user } = useAppSelector((state) => state.profile);
   const { mutateAsync: submitMeme, isPending: isSubmitting } = useSubmitMeme();
   const { mutateAsync: generateMeme, isPending: isGenerating } = useGenerateMeme();
-  const [selectedLanguage, setSelectedLanguage] = useState("english");
+  const { selectedLanguage: siteLanguage } = useLanguage();
+  // Empty until the language list loads, which then defaults it to the site language.
+  const [selectedLanguage, setSelectedLanguage] = useState("");
   const [languageOptions, setLanguageOptions] = useState<{
     id: number;
     value: string;
@@ -50,9 +116,14 @@ const MemeEditorPage = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [template, setTemplate] = useState<MemeTemplate | undefined>();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  // Where the user tried to go while holding unsaved text; set while the discard prompt is open.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
   const getPreviewStorageKey = (templateId: string) => `meme-preview-${templateId}`;
+  // Bumped per generation and on Retry, so a result that arrives late is ignored.
+  const generationRef = useRef(0);
 
   // Load template data from sessionStorage or static data
   useEffect(() => {
@@ -122,12 +193,20 @@ const MemeEditorPage = () => {
         label: item.vernacual_name ?? item.name,
       }));
       setLanguageOptions(opts);
-      // If current selection not found in new options, default to first
+      // If current selection not found in new options, default to the site language
       if (!opts.find((o) => o.value === selectedLanguage)) {
-        setSelectedLanguage(opts[0]?.value ?? "english");
+        const siteLanguageId = convertLanguageMnemonicToId(siteLanguage);
+        const siteOption = opts.find((o) => o.id === siteLanguageId);
+        setSelectedLanguage(siteOption?.value ?? opts[0]?.value ?? "english");
       }
     }
-  }, [languages, selectedLanguage]);
+  }, [languages, selectedLanguage, siteLanguage]);
+
+  useEffect(() => {
+    if (showPreview && template?.id) {
+      triggerGAEvent(GA_EVENTS.MEME_PREVIEW_VIEW, { template_id: template.id });
+    }
+  }, [showPreview, template?.id]);
 
   // No canvas rendering needed; preview uses CSS layering
   useEffect(() => {
@@ -154,18 +233,33 @@ const MemeEditorPage = () => {
       return;
     }
     // Validate inputs
-    if (!topText.trim() && !bottomText.trim()) {
+    if (!topText.trim() || !bottomText.trim()) {
       setShowValidation(true);
       return;
     }
 
     setGenerateError(null);
 
+    triggerGAEvent(GA_EVENTS.MEME_TEXT_ADDED, {
+      language: selectedLanguage,
+      top_len: topText.trim().length,
+      bottom_len: bottomText.trim().length,
+    });
+
     if (!template?.imageURL) {
       console.error("Template image not found");
       setGenerateError("This template couldn't be loaded. Please go back and pick another one.");
       return;
     }
+
+    // Show the preview screen straight away with the CSS-layered meme, and let
+    // the generator build the real GIF meanwhile - it redraws every frame, which
+    // takes a while on long templates. Submit stays disabled until it lands.
+    const generation = ++generationRef.current;
+    setGeneratedBlob(null);
+    setPreviewUrl(undefined);
+    setShowPreview(true);
+    setPreviewQuery(true);
 
     // Why the backend rejected us, in its own words. The response interceptor
     // resolves failed requests instead of rejecting them, so a 400 arrives here
@@ -223,6 +317,9 @@ const MemeEditorPage = () => {
         console.debug("Generator response is not JSON; using binary blob.", err);
       }
 
+      // The user pressed Retry while this was in flight: drop the result.
+      if (generation !== generationRef.current) return;
+
       if (jsonWithoutImageUrl) {
         // Never fall through to the binary branch holding a JSON body: it would
         // render as a broken preview and then be uploaded as the meme asset,
@@ -248,12 +345,13 @@ const MemeEditorPage = () => {
         setGeneratedBlob(resultBlob);
         setPreviewUrl(url);
       }
-
-      // Show preview screen and persist via query param
-      setShowPreview(true);
-      setPreviewQuery(true);
     } catch (e) {
       console.error("Failed to generate meme", e);
+      if (generation !== generationRef.current) return;
+      // Back to the editor, text intact, where the error shows above Create Meme.
+      setShowPreview(false);
+      setPreviewQuery(false);
+      setTermsAccepted(false);
       // Blaming the connection for a rejection the backend explained is how
       // people end up retrying the same too-long caption forever.
       setGenerateError(
@@ -264,13 +362,13 @@ const MemeEditorPage = () => {
   };
 
   const handleRetry = () => {
+    generationRef.current++;
     setShowPreview(false);
     setTermsAccepted(false);
     setPreviewQuery(false);
-    // Reset editor inputs to restart state
-    setTopText("");
-    setBottomText("");
+    // Template, language and text stay as they were, so the user can tweak and go again.
     setShowValidation(false);
+    setSubmitError(null);
     if (previewUrl && previewUrl.startsWith("blob:")) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -317,8 +415,12 @@ const MemeEditorPage = () => {
   ) => {
     const width = 450;
     const height = 440.56;
-    const topMargin = 32;
-    const bottomMargin = 45;
+    // Same bands as the preview and the generator: the template sits between
+    // a 56px top band and a 96px bottom band (caption in its upper 50px, logo
+    // below), so the text never covers the template.
+    const topBand = 56;
+    const bottomBand = 96;
+    const bottomCaptionBand = 50;
     const fontSize = MEME_FONT_SIZE;
     const lineHeight = MEME_LINE_HEIGHT;
     // Matches the preview's "width: calc(100% - 40px)".
@@ -343,11 +445,12 @@ const MemeEditorPage = () => {
     // Backdrop stretched to fill, matching preserveAspectRatio="none"
     ctx.drawImage(bg, 0, 0, width, height);
 
-    // Template contained and centred, matching preserveAspectRatio="xMidYMid meet"
-    const fit = Math.min(width / template.width, height / template.height);
+    // Template contained and centred in the middle area, like object-contain
+    const areaH = height - topBand - bottomBand;
+    const fit = Math.min(width / template.width, areaH / template.height);
     const tW = template.width * fit;
     const tH = template.height * fit;
-    ctx.drawImage(template, (width - tW) / 2, (height - tH) / 2, tW, tH);
+    ctx.drawImage(template, (width - tW) / 2, topBand + (areaH - tH) / 2, tW, tH);
 
     // Only draw lines the user actually typed - an empty field must not
     // burn a "TOP/BOTTOM TEXT HERE" placeholder into the meme.
@@ -356,7 +459,7 @@ const MemeEditorPage = () => {
 
     ctx.font = `700 ${fontSize}px AktivGroteskCorp, -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
+    ctx.textBaseline = "middle";
     ctx.lineWidth = 4;
     ctx.strokeStyle = "#000000";
     ctx.fillStyle = "#ffffff";
@@ -409,17 +512,15 @@ const MemeEditorPage = () => {
       ctx.fillText(text, width / 2, y);
     };
 
-    const topLines = wrapText(safeTop);
-    topLines.forEach((line, i) => {
-      drawLine(line, topMargin + fontSize + i * lineHeight);
-    });
-
-    // The bottom block grows upward so its last line keeps the same baseline.
-    const bottomLines = wrapText(safeBottom);
-    bottomLines.forEach((line, i) => {
-      const fromBottom = bottomLines.length - 1 - i;
-      drawLine(line, height - bottomMargin - fromBottom * lineHeight);
-    });
+    // Each caption block is centred vertically in its band.
+    const drawBlock = (lines: string[], bandTop: number, bandHeight: number) => {
+      const blockTop = bandTop + (bandHeight - lines.length * lineHeight) / 2;
+      lines.forEach((line, i) => {
+        drawLine(line, blockTop + (i + 0.5) * lineHeight);
+      });
+    };
+    drawBlock(wrapText(safeTop), 0, topBand);
+    drawBlock(wrapText(safeBottom), height - bottomBand, bottomCaptionBand);
 
     // Logo contained in a 64px box with a 12px margin, bottom-right.
     // Preserve its aspect ratio (it is 320x108, not square) - forcing it into a
@@ -446,7 +547,8 @@ const MemeEditorPage = () => {
     if (!termsAccepted) {
       return;
     }
-    
+    setSubmitError(null);
+
     try {
       // Get language_id from selected language
       const selectedLang = languageOptions.find(
@@ -489,15 +591,57 @@ const MemeEditorPage = () => {
         asset: blobToUpload as Blob,
       });
 
-      // On success, show modal
-      if (result) {
+      // A failed request resolves as { ok: false } rather than throwing, so
+      // the success modal must wait for ok - not just for any result.
+      if (result?.ok) {
+        triggerGAEvent(GA_EVENTS.MEME_SUBMIT, {
+          template_id: id,
+          language: selectedLanguage,
+        });
         setShowSuccessModal(true);
+      } else {
+        const message = result && "message" in result ? result.message : undefined;
+        triggerGAEvent(GA_EVENTS.MEME_SUBMIT_FAIL, {
+          error_code: message ?? "unknown",
+          template_id: id,
+        });
+        setSubmitError(message || "Couldn't submit your meme. Please try again.");
       }
     } catch (error) {
       console.error("Failed to submit meme:", error);
-      // You can add error handling UI here if needed
+      triggerGAEvent(GA_EVENTS.MEME_SUBMIT_FAIL, {
+        error_code: (error as Error)?.message ?? "unknown",
+        template_id: id,
+      });
+      setSubmitError("Couldn't submit your meme. Please check your connection and try again.");
     }
   };
+
+  // Leaving the editor drops the typed text, so ask first.
+  const guardLeave = (e: React.MouseEvent, href: string) => {
+    if (topText.trim() || bottomText.trim()) {
+      e.preventDefault();
+      setPendingHref(href);
+    }
+  };
+
+  const discardPrompt = (
+    <CustomPopupWrapper
+      open={pendingHref !== null}
+      onClose={() => setPendingHref(null)}
+      icon={ICONS_NAMES.CRYING}
+      title="Discard your meme?"
+      subtitle=""
+      doubleButton
+      sureToExitText="Your text will be lost if you leave now."
+      yesButtonText="Discard"
+      noButtonText="Keep editing"
+      yesButtonClick={() => {
+        if (pendingHref) router.push(pendingHref);
+      }}
+      noButtonClick={() => setPendingHref(null)}
+    />
+  );
 
   // Get selected language label
   const selectedLanguageLabel = languageOptions.find(
@@ -512,6 +656,7 @@ const MemeEditorPage = () => {
         <div className="flex w-full border-b border-gray-200">
           <Link
             href="/create-memes"
+            onClick={(e) => guardLeave(e, "/create-memes")}
             className={`flex-1 md:py-4 py-2 text-center md:text-[20px] text-[12px] leading-[100%] transition-all duration-200 relative text-black font-[700]`}
           >
             Create
@@ -519,6 +664,7 @@ const MemeEditorPage = () => {
           </Link>
           <Link
             href="/create-memes?tab=myMemes"
+            onClick={(e) => guardLeave(e, "/create-memes?tab=myMemes")}
             className={`flex-1 md:py-4 py-2 text-center md:text-[20px] text-[12px] leading-[100%] transition-all duration-200 border-l relative text-black font-[400]`}
           >
             My Memes
@@ -542,17 +688,27 @@ const MemeEditorPage = () => {
               onRetry={handleRetry}
               onSubmit={handleSubmit}
               isSubmitting={isSubmitting}
+              isGenerating={isGenerating}
+              error={submitError}
+              placeholder={
+                <MemeLayers
+                  imageURL={template?.imageURL}
+                  topText={topText}
+                  bottomText={bottomText}
+                />
+              }
             />
-            {/* Progress modal during generation/submission */}
-            <LoadingModal isOpen={isGenerating} text="Creating your meme..." />
             <LoadingModal isOpen={isSubmitting} text="Submitting your meme..." />
+            {discardPrompt}
             <MemeSubmitSuccessModal
               open={showSuccessModal}
               onClose={handleCloseSuccessModal}
               onDropAnother={() => {
+                triggerGAEvent(GA_EVENTS.MEME_ENTRY_CLICK, { entry_point: "modal" });
                 router.push("/create-memes");
               }}
               onViewVault={() => {
+                triggerGAEvent(GA_EVENTS.MEME_ENTRY_CLICK, { entry_point: "modal" });
                 router.push("/create-memes?tab=myMemes");
               }}
             />
@@ -567,6 +723,7 @@ const MemeEditorPage = () => {
       <div className="flex w-full border-b border-gray-200">
         <Link
           href="/create-memes"
+          onClick={(e) => guardLeave(e, "/create-memes")}
           className={`flex-1 md:py-4 py-2 text-center md:text-[20px] text-[12px] leading-[100%] transition-all duration-200 relative text-black font-[700]`}
         >
           Create
@@ -574,6 +731,7 @@ const MemeEditorPage = () => {
         </Link>
         <Link
           href="/create-memes?tab=myMemes"
+          onClick={(e) => guardLeave(e, "/create-memes?tab=myMemes")}
           className={`flex-1 md:py-4 py-2 text-center md:text-[20px] text-[12px] leading-[100%] transition-all duration-200 border-l relative text-black font-[400]`}
         >
           My Memes
@@ -623,66 +781,10 @@ const MemeEditorPage = () => {
             backgroundPosition: "center",
           }}
         >
-          {/* Template image contained between the text bands (56px top, 96px
-              bottom for the text and logo) so the text never covers the GIF. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={template?.imageURL}
-            alt="template"
-            className="absolute inset-x-0 top-[56px] h-[calc(100%-152px)] w-full object-contain"
-          />
-
-          {/* Top text */}
-          <div className="absolute inset-x-0 top-0 h-[56px] flex items-center justify-center">
-          <div
-            className="text-white text-center font-[700]"
-            style={{
-              WebkitTextStroke: "1px #000",
-              fontSize: `${MEME_FONT_SIZE}px`,
-              lineHeight: `${MEME_LINE_HEIGHT}px`,
-              width: "calc(100% - 40px)",
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: MEME_TEXT_MAX_LINES,
-              overflow: "hidden",
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-              letterSpacing: "0%",
-            }}
-          >
-            {(topText && topText.trim()) ? topText.toUpperCase() : ""}
-          </div>
-          </div>
-
-          {/* Bottom text, above the logo */}
-          <div className="absolute inset-x-0 bottom-[46px] h-[50px] flex items-center justify-center">
-          <div
-            className="text-white text-center font-[700]"
-            style={{
-              WebkitTextStroke: "1px #000",
-              fontSize: `${MEME_FONT_SIZE}px`,
-              lineHeight: `${MEME_LINE_HEIGHT}px`,
-              width: "calc(100% - 40px)",
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: MEME_TEXT_MAX_LINES,
-              overflow: "hidden",
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-              letterSpacing: "0%",
-            }}
-          >
-            {(bottomText && bottomText.trim()) ? bottomText.toUpperCase() : ""}
-          </div>
-          </div>
-
-          {/* Sprite logo at bottom-right, 64px wide with a 12px margin (matches the canvas export) */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/assets/meme-burst/sprite-logo-white.png"
-            alt="sprite-logo"
-            className="absolute"
-            style={{ right: 12, bottom: 12, width: 64, height: "auto", opacity: LOGO_OPACITY }}
+          <MemeLayers
+            imageURL={template?.imageURL}
+            topText={topText}
+            bottomText={bottomText}
           />
         </div>
 
@@ -759,7 +861,7 @@ const MemeEditorPage = () => {
           className="w-full md:mb-[86.34px] mb-[48px]"
           disabled={isGenerating}
         />
-        <LoadingModal isOpen={isGenerating} text="Creating your meme..." />
+        {discardPrompt}
       </div>
       </div>
     </>
