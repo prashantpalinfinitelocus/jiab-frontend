@@ -1,3 +1,4 @@
+import { isHttpsUrl } from '@/utils/secure'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import CustomPopupWrapper from '../CustomPopupWrapper'
 import { GA_EVENTS, ICONS_NAMES } from '@/constants'
@@ -15,15 +16,9 @@ import { useCMSData } from '@/data'
 import useAppSelector from '@/hooks/useSelector'
 import useAlloyEvents from '@/hooks/useAlloyEvents'
 
-const isValidUrl = (url: string) => {
-  const regex = /^https:\/\/([\da-z.-]+)\.([a-z.]{2,4})([\/\w .-]*)*\/?$/i
-  return regex.test(url)
-}
+const isValidUrl = (url: string) => isHttpsUrl(url)
 
-const isValidUrl2 = (url: string) => {
-  const regex = /^http:\/\/([\da-z.-]+)\.([a-z.]{2,4})([\/\w .-]*)*\/?$/i
-  return regex.test(url)
-}
+const isValidUrl2 = (url: string) => url.startsWith('http://') && isHttpsUrl(url, true)
 
 const ReportPopupComponent = ({
   open,

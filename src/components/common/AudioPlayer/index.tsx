@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { safeObjectUrl } from "@/utils/secure";
 import SvgIcons from '../SvgIcons'
 import { ICONS_NAMES } from '@/constants'
 
@@ -14,7 +15,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, fileName }) => {
   const [duration, setDuration] = useState(0)
 
   // Create object URL only once per file
-  const objectUrl = useMemo(() => URL.createObjectURL(src), [src])
+  const objectUrl = useMemo(() => safeObjectUrl(src, "audio"), [src])
 
   // Clean up the object URL when component unmounts or src changes
   useEffect(() => {

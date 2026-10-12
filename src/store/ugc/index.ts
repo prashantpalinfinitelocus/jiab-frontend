@@ -1,4 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
+import { secureId } from "@/utils/secure";
 import { TModifiedUGCContent } from "@/api/types/GluedinTypes";
 import { REDUX_UPDATION_TYPES } from "@/constants";
 
@@ -75,7 +76,7 @@ const ugcSlice = createSlice({
     updateUgcFilters: (state, action) => {
       const { filters } = action.payload;
       state.ugcFilters = { ...state.ugcFilters, ...filters };
-      state.filterChnageId = Math.random().toString();
+      state.filterChnageId = secureId(6);
       state.offset = 1;
       state.loadMore = false;
     },

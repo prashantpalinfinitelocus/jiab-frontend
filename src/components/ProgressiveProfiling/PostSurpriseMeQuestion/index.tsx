@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { secureId } from "@/utils/secure";
 import Image from "next/image";
 import { TQuestionOption } from "@/api/types/ProfileTypes";
 import { IGenre } from "@/store/reference";
@@ -48,8 +49,8 @@ const PostSurpriseMeQuestion: React.FC<PostSurpriseMeQuestionProps> = ({
   // Generate a simple session_id (you may want to use a more robust solution)
   const sessionIdRef = useRef<string>(
     typeof window !== "undefined" 
-      ? sessionStorage.getItem("ga_session_id") || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      : `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      ? sessionStorage.getItem("ga_session_id") || `session_${Date.now()}_${secureId(5)}`
+      : `session_${Date.now()}_${secureId(5)}`
   );
 
   useEffect(() => {

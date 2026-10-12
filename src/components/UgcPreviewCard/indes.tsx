@@ -1,4 +1,5 @@
 import useAppSelector from '@/hooks/useSelector'
+import { safeObjectUrl } from "@/utils/secure";
 import { IJokeData } from '@/types'
 import React, { useEffect, useState } from 'react'
 import AktivGroteskText from '../common/AktivGroteskText'
@@ -164,9 +165,7 @@ const   UgcPreviewCard = ({
                     <div className='min-h-[261px] max-h-[300px] relative'>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={URL.createObjectURL(
-                          jokeData?.file?.[0] ?? new Blob()
-                        )}
+                        src={safeObjectUrl(jokeData?.file?.[0], "image")}
                         alt='image'
                         className='w-auto max-h-[300px] min-h-[261px] object-cover rounded-[5px]'
                       />

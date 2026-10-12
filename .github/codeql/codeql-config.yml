@@ -1,0 +1,6 @@
+name: jiab-frontend CodeQL config
+# Generated service-worker bundles and the third-party SDK are not our source.
+paths-ignore:
+  - public/sw.js
+  - public/workbox-*.js
+  - gluedin/**

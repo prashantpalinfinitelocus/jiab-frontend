@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { MEME_SOURCE_ALLOWED_HOSTS } from "@/constants";
+import { assetOrigin } from "@/utils/assetOrigin";
 
 // Meme assets live on a GCS bucket that sends no CORS headers, so the browser
 // cannot read them back - which broke sharing the meme as an image file.
@@ -9,7 +9,6 @@ import { MEME_SOURCE_ALLOWED_HOSTS } from "@/constants";
 // Only hosts we actually serve assets from are allowed, so this cannot be used
 // as a general purpose open proxy. Shared with the meme-generator's meme_url
 // allowlist (see MEME_SOURCE_ALLOWED_HOSTS) since both fetch the same assets.
-const ALLOWED_HOSTS = MEME_SOURCE_ALLOWED_HOSTS;
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
@@ -25,12 +24,14 @@ export async function GET(req: NextRequest) {
     return new Response("Invalid 'url' query param", { status: 400 });
   }
 
-  if (target.protocol !== "https:" || !ALLOWED_HOSTS.includes(target.hostname)) {
+  const origin = assetOrigin(target.hostname);
+  if (target.protocol !== "https:" || !origin) {
     return new Response("Host not allowed", { status: 403 });
   }
 
   try {
-    const response = await fetch(target.toString());
+    // Redirects are not followed: a redirect could lead off the allowlisted hosts.
+    const response = await fetch(`${origin}${target.pathname}${target.search}`, { redirect: "manual" });
 
     if (!response.ok) {
       return new Response("Failed to fetch asset", { status: response.status });

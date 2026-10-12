@@ -2,6 +2,7 @@ import {
   resetAuth,
   updateRefreshTokenNotVerified,
 } from "@/store/auth/auth.slice";
+import { secureId } from "@/utils/secure";
 import useAppDispatch from "./useDispatch";
 import { resetProfile } from "@/store/profile/profile.slice";
 import { clearAllModalSessions } from "./useSessionModal";
@@ -88,7 +89,7 @@ const useLogout = () => {
     });
 
     localStorage.removeItem(LOCAL_STORAGE_KEYS.KOCID);
-    setUniqueId(Math.random().toString(36).substring(2, 15));
+    setUniqueId(secureId(7));
     removeSessionStorageItem(SESSION_STORAGE_KEYS.HAS_SHOWN_LOCK_MODAL);
     // A saved shared link belongs to the visitor who followed it. Logging out
     // hands the device to whoever signs in next, and they should not be pulled

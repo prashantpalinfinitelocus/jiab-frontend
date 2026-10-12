@@ -1,14 +1,13 @@
-import nextPwa from "@ducanh2912/next-pwa";
+import withSerwistInit from "@serwist/next";
 
-const withPWA = nextPwa({
-  dest: "public",
+// Service worker: precaches the build output and applies Serwist's default runtime caching.
+// Source is src/app/sw.ts; the bundled worker is written to public/sw.js at build time.
+const withPWA = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  disable: false,
   register: true,
-  skipWaiting: true,
-  disable: false, // Disable PWA in development
-  devOptions: {
-    enabled: false, // Disable dev options to prevent debug logging
-  },
-  buildExcludes: [/\.map$/], // .map files excluded
+  exclude: [/\.map$/],
 });
 
 /**
@@ -40,9 +39,14 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Next.js 16 removed the `eslint.ignoreDuringBuilds` config option
+  // (ESLint is no longer run as part of `next build`); the key is now
+  // rejected with an "Invalid next.config.mjs options" warning, so it's
+  // dropped here rather than carried forward as dead/invalid config.
+  // Next.js 16 scaffolds an AGENTS.md file for AI coding agents on every
+  // dev/build run; this repo doesn't use that feature, so disable it to
+  // avoid generating an untracked file as a side effect of the upgrade.
+  agentRules: false,
   /**
    * Clickjacking mitigation (e.g. finding 4.12 / OWASP WSTG).
    * SAMEORIGIN: only same-origin pages may embed this app in a frame.

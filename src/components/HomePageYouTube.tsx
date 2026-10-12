@@ -16,6 +16,7 @@ export interface IYouTubeVideo {
 }
 
 // Accepts watch, youtu.be, shorts and embed links, or a bare video id.
+const YOUTUBE_ORIGINS = ["https://www.youtube.com", "https://www.youtube-nocookie.com"];
 const getYouTubeId = (url: string) =>
   url.match(
     /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/,
@@ -109,7 +110,7 @@ export default function HomePageYouTube({
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (
-        !event.origin.includes("youtube.com") ||
+        !YOUTUBE_ORIGINS.includes(event.origin) ||
         event.source !== iframeRef.current?.contentWindow
       )
         return;
@@ -148,7 +149,7 @@ export default function HomePageYouTube({
               func: "unloadModule",
               args: ["captions"],
             }),
-            "*",
+            "https://www.youtube.com",
           );
           // Each video starts muted so browsers let it autoplay; turn the
           // sound back on if the viewer had it on. This waits for playback,
@@ -157,7 +158,7 @@ export default function HomePageYouTube({
             unmutingRef.current = true;
             iframeRef.current?.contentWindow?.postMessage(
               JSON.stringify({ event: "command", func: "unMute", args: [] }),
-              "*",
+              "https://www.youtube.com",
             );
           }
         }
@@ -189,7 +190,7 @@ export default function HomePageYouTube({
   }, []);
 
   const postToPlayer = (message: object) =>
-    iframeRef.current?.contentWindow?.postMessage(JSON.stringify(message), "*");
+    iframeRef.current?.contentWindow?.postMessage(JSON.stringify(message), "https://www.youtube.com");
 
   // The player only reports its state once asked to.
   const listenToPlayer = () => {

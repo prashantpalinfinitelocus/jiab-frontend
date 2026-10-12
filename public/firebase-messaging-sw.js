@@ -8,7 +8,8 @@ importScripts(
 
 
 const CONFIG = {
-  apiKey: "REPLACE_WITH_FIREBASE_WEB_API_KEY",
+  // Firebase web API keys are public client identifiers (shipped to every browser); access is restricted by referrer/API in Google Cloud.
+  apiKey: "REPLACE_WITH_FIREBASE_WEB_API_KEY", // gitleaks:allow nosemgrep
   authDomain: "ai0015455-sfa-prod.firebaseapp.com",
   projectId: "ai0015455-sfa-prod",
   storageBucket: "ai0015455-sfa-prod.firebasestorage.app",
@@ -242,6 +243,8 @@ self.addEventListener("activate", () => {
 });
 
 self.addEventListener("message", (event) => {
+  // Only pages served from this origin may message the service worker.
+  if (event.origin && event.origin !== self.location.origin) return;
   if (event?.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
     return;

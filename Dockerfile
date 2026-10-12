@@ -33,8 +33,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 COPY start.sh ./start.sh
-RUN chmod +x ./start.sh
+RUN chmod +x ./start.sh && chown -R node:node /app
 
 EXPOSE 3000
+
+# Run as the unprivileged user the node image provides.
+USER node
 
 CMD ["./start.sh"]

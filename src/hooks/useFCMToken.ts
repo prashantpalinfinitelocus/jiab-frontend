@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { tokenMarker } from "@/utils/secure";
 import { messaging, getToken, onMessage, setupMessaging, logNotificationClicked } from "@/lib/firebase";
 import { useRegisterDevice } from "@/api/hooks/NotificationHooks";
 import useAppSelector from "@/hooks/useSelector";
@@ -300,7 +301,7 @@ const useFCMToken = () => {
         if (result.ok) {
           setFcmState((prev) => ({ ...prev, isRegistered: true }));
           localStorage.setItem("device_registered", "true");
-          localStorage.setItem("device_registered_for_user", authToken); // Store which user this was registered for
+          localStorage.setItem("device_registered_for_user", tokenMarker(authToken)); // Store which user this was registered for
           return true;
         } else {
           setFcmState((prev) => ({
@@ -367,7 +368,7 @@ const useFCMToken = () => {
     if (
       isAlreadyRegistered &&
       registeredForUser &&
-      registeredForUser !== authToken
+      registeredForUser !== tokenMarker(authToken)
     ) {
       localStorage.removeItem("device_registered");
       localStorage.removeItem("device_registered_for_user");
@@ -377,7 +378,7 @@ const useFCMToken = () => {
     // Check if already properly registered for current user
     if (
       isAlreadyRegistered &&
-      registeredForUser === authToken &&
+      registeredForUser === tokenMarker(authToken) &&
       existingToken &&
       currentPermission === "granted"
     ) {

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { safeObjectUrl } from "@/utils/secure";
 import SvgIcons from '../SvgIcons'
 import { ICONS_NAMES } from '@/constants'
 
@@ -14,7 +15,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src }) => {
   const [isPortrait, setIsPortrait] = useState(false)
 
   // Create object URL only once per file
-  const objectUrl = useMemo(() => URL.createObjectURL(src), [src])
+  const objectUrl = useMemo(() => safeObjectUrl(src, "video"), [src])
 
   // Clean up the object URL when component unmounts or src changes
   useEffect(() => {
